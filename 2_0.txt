@@ -1,0 +1,60 @@
+import torch
+from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from datasets import load_dataset
+import numpy as np
+from sklearn.metrics import mean_squared_error
+
+# Load the dataset
+# This is an example dataset, replace it with your actual data
+dataset = load_dataset('imdb', split='train[:1000]')  # using a subset for demonstration
+
+# Tokenize the dataset
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+def tokenize_function(examples):
+    return tokenizer(examples['text'], padding="max_length", truncation=True)
+
+tokenized_datasets = dataset.map(tokenize_function, batched=True)
+
+# Convert labels to float for regression
+def convert_labels(examples):
+    examples['label'] = float(examples['label'])
+    return examples
+
+tokenized_datasets = tokenized_datasets.map(convert_labels)
+
+# Rename 'label' to 'labels' for compatibility
+tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
+
+# Load the model
+model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=1)
+
+# Define the training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    evaluation_strategy="epoch",
+    learning_rate=2e-5,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    num_train_epochs=3,
+    weight_decay=0.01,
+)
+
+# Define a function to compute metrics
+def compute_metrics(pred):
+    labels = pred.label_ids
+    preds = pred.predictions.flatten()
+    mse = mean_squared_error(labels, preds)
+    return {"mse": mse}
+
+# Initialize the Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_datasets,
+    eval_dataset=tokenized_datasets,
+    compute_metrics=compute_metrics
+)
+
+# Train the model
+trainer.train()
