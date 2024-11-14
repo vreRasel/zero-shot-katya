@@ -1,0 +1,29 @@
+from transformers import AdamW, get_scheduler
+from torch.utils.data import DataLoader
+
+# Prepare data loaders
+train_dataloader = DataLoader(tokenized_datasets, batch_size=16, shuffle=True)
+
+# Prepare optimizer and scheduler
+optimizer = AdamW(model.parameters(), lr=2e-5)
+num_training_steps = len(train_dataloader) * training_args.num_train_epochs
+lr_scheduler = get_scheduler(
+    name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+)
+
+# Define the loss function
+loss_fn = torch.nn.MSELoss()
+
+# Training loop
+model.train()
+for epoch in range(training_args.num_train_epochs):
+    for batch in train_dataloader:
+        outputs = model(**batch)
+        loss = loss_fn(outputs.logits.squeeze(), batch["labels"])
+        loss.backward()
+        
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+
+    print(f"Epoch {epoch} - Loss: {loss.item()}")
